@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">DrawerNav</string>
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="nav_header_title">AIMate 2.0 Demo</string>
+    <string name="nav_header_subtitle">欢迎使用 AIMate 2.0</string>
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="action_settings">设置</string>
+    <string name="home_title">AI Mate</string>
+    <string name="menu_home">主界面</string>
+    <string name="menu_gallery">相册</string>
+    <string name="menu_slideshow">滑窗</string>
+    <string name="welcome_message">欢迎使用\nAIMate 2.0</string>
+    <string name="default_detection_message">请点击相机按钮</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+</resources>
