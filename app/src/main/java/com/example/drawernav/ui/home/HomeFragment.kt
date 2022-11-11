@@ -3,48 +3,46 @@ package com.example.drawernav.ui.home
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.media.MediaRecorder
-import android.os.Build
-import android.os.Bundle
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.*
 import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProvider
-import androidx.navigation.ui.AppBarConfiguration
 import com.example.drawernav.databinding.FragmentHomeBinding
-import com.google.android.material.snackbar.Snackbar
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class HomeFragment : Fragment() {
 
-    private lateinit var appBarConfiguration: AppBarConfiguration
+//    private lateinit var appBarConfiguration: AppBarConfiguration
     private var _binding: FragmentHomeBinding? = null
-
     private var imageCapture: ImageCapture? = null
-    private var videoCapture: VideoCapture<Recorder>? = null
-    private var recording: Recording? = null
-
-    private var fileName: String = ""
-
-    private var recorder: MediaRecorder? = null
+    private val gHandler: Handler = object : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            binding.textWelcome.text = msg.obj.toString()
+        }
+    }
 
     private lateinit var cameraExecutor: ExecutorService
 
@@ -58,16 +56,10 @@ class HomeFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val homeViewModel =
-            ViewModelProvider(this)[HomeViewModel::class.java]
 
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
+        StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().permitAll().build())
         val root: View = binding.root
-
-//        val textView: TextView = binding.textWelcome
-//        homeViewModel.text.observe(viewLifecycleOwner) {
-//            textView.text = it
-//        }
 
         // Request camera permissions
         if (allPermissionsGranted()) {
@@ -139,7 +131,7 @@ class HomeFragment : Fragment() {
 
         // Set up image capture listener, which is triggered after photo has
         // been taken
-        this.context?.let { ContextCompat.getMainExecutor(it) }?.let {
+        this.context?.let { ContextCompat.getMainExecutor(it) }?.let { it ->
             if (outputOptions != null) {
                 imageCapture.takePicture(
                     outputOptions,
@@ -151,14 +143,76 @@ class HomeFragment : Fragment() {
 
                         override fun
                                 onImageSaved(output: ImageCapture.OutputFileResults){
-                            val msg = "Photo capture succeeded: ${output.savedUri}"
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            Log.d(TAG, msg)
+                            val msg = "Photo capture succeeded."
+                            Log.e("image", msg)
+                            val resolver = context?.contentResolver
+                            if (resolver != null) {
+                                output.savedUri?.let {
+                                    resolver.openInputStream(it).use { stream ->
+                                        val nname = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+                                            .format(System.currentTimeMillis())
+                                        val bitmap = BitmapFactory.decodeStream(stream)
+                                        val file = File(Environment.getExternalStorageDirectory(), "${nname}.jpg")
+                                        val out = FileOutputStream(file)
+                                        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out)
+
+                                        val msg = "Photo capture succeeded: ${file.absolutePath}"
+                                        sendImage(file, "$nname.jpg")
+                                        Log.e("image", msg)
+                                    }
+                                }
+                            }
                         }
                     }
                 )
             }
         }
+    }
+
+    private fun sendImage(file: File, fName: String) {
+
+        val client = OkHttpClient.Builder()
+            .connectTimeout(10000, TimeUnit.MILLISECONDS)
+            .build()
+        val mediaType =
+            "multipart/form-data".toMediaType()
+
+        Log.e("image", file.totalSpace.toString())
+        val body = MultipartBody.Builder().setType(mediaType)
+            .setType(mediaType)
+            .addFormDataPart("img", file.absolutePath, file.asRequestBody("image/jpeg".toMediaType()))
+            .build()
+        val request = Request.Builder()
+            .url("http://47.108.210.169:8082/img_tensor")
+            .post(body)
+            .build()
+        Log.e("image", "start request.:${file.absolutePath}")
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    if (!response.isSuccessful) throw IOException("Unexpected code $response")
+
+                    val retstr = response.body!!.string()
+                    val msg = Message()
+                    msg.obj = retstr
+                    Log.e("image", retstr)
+                    gHandler.sendMessage(msg)
+                }
+            }
+        })
+//        try {
+//            val response = client.newCall(request).execute()
+//            val retstr = response.body!!.string()
+//            Log.e("image", retstr)
+//            Toast.makeText(this.context, retstr, Toast.LENGTH_SHORT).show()
+//            binding.textWelcome.text = retstr
+//        } catch (e: ConnectException) {
+//            Toast.makeText(this.context, "未连接到网络", Toast.LENGTH_SHORT).show()
+//        }
     }
 
     private fun startCamera() {
