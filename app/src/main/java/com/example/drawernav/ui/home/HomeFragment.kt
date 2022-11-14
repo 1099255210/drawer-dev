@@ -43,13 +43,8 @@ class HomeFragment : Fragment() {
             binding.textWelcome.text = msg.obj.toString()
         }
     }
-
     private lateinit var cameraExecutor: ExecutorService
-
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     private val binding get() = _binding!!
-
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -61,7 +56,6 @@ class HomeFragment : Fragment() {
         StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().permitAll().build())
         val root: View = binding.root
 
-        // Request camera permissions
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -70,7 +64,6 @@ class HomeFragment : Fragment() {
                     it, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
             }
         }
-
 
         binding.cameraBtn.setOnClickListener {
             takePhoto()
@@ -105,10 +98,8 @@ class HomeFragment : Fragment() {
     }
 
     private fun takePhoto() {
-        // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
 
-        // Create time stamped name and MediaStore entry.
         val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
             .format(System.currentTimeMillis())
         val contentValues = ContentValues().apply {
@@ -119,7 +110,6 @@ class HomeFragment : Fragment() {
             }
         }
 
-        // Create output options object which contains file + metadata
         val outputOptions = this.activity?.applicationContext?.let {
             ImageCapture.OutputFileOptions
                 .Builder(
@@ -129,8 +119,6 @@ class HomeFragment : Fragment() {
                 .build()
         }
 
-        // Set up image capture listener, which is triggered after photo has
-        // been taken
         this.context?.let { ContextCompat.getMainExecutor(it) }?.let { it ->
             if (outputOptions != null) {
                 imageCapture.takePicture(
@@ -155,10 +143,7 @@ class HomeFragment : Fragment() {
                                         val file = File(Environment.getExternalStorageDirectory(), "${nname}.jpg")
                                         val out = FileOutputStream(file)
                                         bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out)
-
-                                        val msg = "Photo capture succeeded: ${file.absolutePath}"
-                                        sendImage(file, "$nname.jpg")
-                                        Log.e("image", msg)
+                                        sendImage(file)
                                     }
                                 }
                             }
@@ -169,7 +154,7 @@ class HomeFragment : Fragment() {
         }
     }
 
-    private fun sendImage(file: File, fName: String) {
+    private fun sendImage(file: File) {
 
         val client = OkHttpClient.Builder()
             .connectTimeout(10000, TimeUnit.MILLISECONDS)
@@ -195,7 +180,6 @@ class HomeFragment : Fragment() {
             override fun onResponse(call: Call, response: Response) {
                 response.use {
                     if (!response.isSuccessful) throw IOException("Unexpected code $response")
-
                     val retstr = response.body!!.string()
                     val msg = Message()
                     msg.obj = retstr
@@ -204,15 +188,6 @@ class HomeFragment : Fragment() {
                 }
             }
         })
-//        try {
-//            val response = client.newCall(request).execute()
-//            val retstr = response.body!!.string()
-//            Log.e("image", retstr)
-//            Toast.makeText(this.context, retstr, Toast.LENGTH_SHORT).show()
-//            binding.textWelcome.text = retstr
-//        } catch (e: ConnectException) {
-//            Toast.makeText(this.context, "未连接到网络", Toast.LENGTH_SHORT).show()
-//        }
     }
 
     private fun startCamera() {
@@ -220,33 +195,22 @@ class HomeFragment : Fragment() {
 
         this.activity?.let { ContextCompat.getMainExecutor(it.baseContext) }?.let { it ->
             cameraProviderFuture?.addListener({
-                // Used to bind the lifecycle of cameras to the lifecycle owner
                 val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
-                // Preview
                 val preview = Preview.Builder()
                     .build()
                     .also {
                         it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
                     }
-
                 imageCapture = ImageCapture.Builder().build()
-
-                // Select back camera as a default
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
                 try {
-                    // Unbind use cases before rebinding
                     cameraProvider.unbindAll()
-
-                    // Bind use cases to camera
                     cameraProvider.bindToLifecycle(
                         this, cameraSelector, preview, imageCapture)
-
                 } catch(exc: Exception) {
                     Log.e(TAG, "Use case binding failed", exc)
                 }
-
             }, it)
         }
     }
