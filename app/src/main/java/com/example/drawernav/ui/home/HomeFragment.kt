@@ -1,10 +1,9 @@
 package com.example.drawernav.ui.home
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.*
 import android.provider.MediaStore
 import android.util.Log
@@ -25,7 +24,6 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
@@ -129,21 +127,24 @@ class HomeFragment : Fragment() {
                             Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
                         }
 
+                        @SuppressLint("Range")
                         override fun
                                 onImageSaved(output: ImageCapture.OutputFileResults){
                             val msg = "Photo capture succeeded."
                             Log.e("image", msg)
                             val resolver = context?.contentResolver
-                            if (resolver != null) {
-                                output.savedUri?.let {
-                                    resolver.openInputStream(it).use { stream ->
-                                        val nname = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-                                            .format(System.currentTimeMillis())
-                                        val bitmap = BitmapFactory.decodeStream(stream)
-                                        val file = File(Environment.getExternalStorageDirectory(), "${nname}.jpg")
-                                        val out = FileOutputStream(file)
-                                        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out)
-                                        sendImage(file)
+                            val savedUri = output.savedUri
+                            savedUri.apply {
+                                val filePathColumn = arrayOf(MediaStore.Images.Media.DATA)
+                                if (resolver != null) {
+                                    val cursor =
+                                        resolver.query(savedUri!!, filePathColumn, null, null, null)
+                                    if (cursor != null) {
+                                        cursor.moveToFirst()
+                                        val path =
+                                            cursor.getString(cursor.getColumnIndex(MediaStore.Images.Media.DATA))
+                                        cursor.close()
+                                        sendImage(File(path))
                                     }
                                 }
                             }
@@ -162,7 +163,7 @@ class HomeFragment : Fragment() {
         val mediaType =
             "multipart/form-data".toMediaType()
 
-        Log.e("image", file.totalSpace.toString())
+        Log.d("image", file.totalSpace.toString())
         val body = MultipartBody.Builder().setType(mediaType)
             .setType(mediaType)
             .addFormDataPart("img", file.absolutePath, file.asRequestBody("image/jpeg".toMediaType()))
@@ -171,7 +172,7 @@ class HomeFragment : Fragment() {
             .url("http://47.108.210.169:8082/img_tensor")
             .post(body)
             .build()
-        Log.e("image", "start request.:${file.absolutePath}")
+        Log.d("image", "start request.:${file.absolutePath}")
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 e.printStackTrace()
